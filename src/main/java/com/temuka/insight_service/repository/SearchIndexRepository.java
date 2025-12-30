@@ -5,14 +5,9 @@ import org.springframework.stereotype.Repository;
 
 import com.temuka.insight_service.entity.SearchIndex;
 
-import java.util.List;
-
 @Repository
 public interface SearchIndexRepository extends MongoRepository<SearchIndex, String> {
 
-    List<SearchIndex> findByType(String type);
-
-    List<SearchIndex> findByTextContainingIgnoreCase(String text);
-
-    List<SearchIndex> findByTypeAndTextContainingIgnoreCase(String type, String text);
+    @Override
+    void deleteById(String id);
 }

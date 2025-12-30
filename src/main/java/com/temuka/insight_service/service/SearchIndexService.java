@@ -2,10 +2,16 @@ package com.temuka.insight_service.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.TextCriteria;
+import org.springframework.data.mongodb.core.query.TextQuery;
 import org.springframework.stereotype.Service;
 
+import com.temuka.insight_service.dto.response.SearchResponseDTO;
 import com.temuka.insight_service.entity.SearchIndex;
-import com.temuka.insight_service.repository.SearchIndexRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -13,40 +19,34 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SearchIndexService {
 
-    private final SearchIndexRepository searchIndexRepository;
+    private final MongoTemplate mongoTemplate;
 
-    public SearchIndex save(SearchIndex searchIndex) {
-        return searchIndexRepository.save(searchIndex);
-    }
+    public SearchResponseDTO search(String q, String type, String contextId, String sort, int page) {
+        TextCriteria criteria = TextCriteria.forDefaultLanguage().matchingAny(q);
+        TextQuery query = TextQuery.queryText(criteria);
 
-    public List<SearchIndex> searchUsers(String text) {
-        return searchIndexRepository
-                .findByTypeAndTextContainingIgnoreCase("user", text);
-    }
+        if (contextId != null) query.addCriteria(Criteria.where("contextId").is(contextId));
+        
+        if ("new".equals(sort)) {
+            query.with(Sort.by(Sort.Direction.DESC, "createdAt"));
+        } else {
+            query.sortByScore();
+            query.with(Sort.by(Sort.Direction.DESC, "scoreMultiplier"));
+        }
 
-    public List<SearchIndex> searchPosts(String text) {
-        return searchIndexRepository
-                .findByTypeAndTextContainingIgnoreCase("post", text);
-    }
+        query.with(PageRequest.of(page, 10));;
+        List<SearchIndex> results = mongoTemplate.find(query, SearchIndex.class);
+        long total = mongoTemplate.count(query, SearchIndex.class);
 
-    public List<SearchIndex> searchCommunities(String text) {
-        return searchIndexRepository
-                .findByTypeAndTextContainingIgnoreCase("community", text);
-    }
-
-    public List<SearchIndex> searchMajors(String text) {
-        return searchIndexRepository
-                .findByTypeAndTextContainingIgnoreCase("major", text);
-    }
-
-    public List<SearchIndex> searchUniversities(String text) {
-        return searchIndexRepository
-                .findByTypeAndTextContainingIgnoreCase("university", text);
-    }
-
-    public List<SearchIndex> autocomplete(String text) {
-        return searchIndexRepository
-                .findByTextContainingIgnoreCase(text);
+        return SearchResponseDTO.builder()
+            .content(results)
+            .pageNumber(page)
+            .pageSize(10)
+            .totalElements(total)
+            .totalPages((int) Math.ceil((double) total / 10))
+            .last((page + 1) * 10 >= total)
+            .query(q)
+            .build();
     }
 
 }
